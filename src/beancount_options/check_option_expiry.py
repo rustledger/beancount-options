@@ -18,7 +18,7 @@ complete without it.
 
 Python counterpart of rustledger's native ``check_option_expiry``; messages
 and locations match it exactly without a config, except that two same-day
-trades in different included files can be ordered differently. The native
+trades in different files can be ordered differently (rustledger#2661). The native
 plugin does not read ``as_of`` yet.
 """
 

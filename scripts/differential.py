@@ -42,10 +42,12 @@ ERROR_LINE = re.compile(r"(?P<name>[^\s:\[]+\.beancount):(?P<line>\d+):(?:\d+:)?
 
 def ledger(rng, include=None):
     """A random ledger. With ``include`` (a file name), about half the trades
-    go to a second text for that file, on fewer distinct dates so same-day
+    go to a second text for that file, on eight shared dates so same-day
     trades land in both files. Returns (main text, included text or None).
     """
-    days = 12 if include else 120
+    # With an include, trades share a few dates spread over the whole range,
+    # so same-day trades land in both files on either side of expiries.
+    pool = rng.sample(range(1, 121), 8) if include else range(1, 121)
     other = []
     lines = [
         'plugin "beancount_options.check_option_expiry"',
@@ -58,7 +60,7 @@ def ledger(rng, include=None):
     ]
     symbols = rng.sample(SYMBOLS, rng.randint(1, 4))
     for _ in range(rng.randint(1, 12)):
-        date = START + datetime.timedelta(days=rng.randint(1, days))
+        date = START + datetime.timedelta(days=rng.choice(pool))
         target = other if include and rng.random() < 0.5 else lines
         target.append(f'{date} * "trade"')
         for _ in range(rng.randint(1, 3)):
@@ -140,6 +142,8 @@ def main():
         else:
             path.unlink()
             inc.unlink(missing_ok=True)
+            # bean-check's pickle cache, a dotfile next to the ledger.
+            path.with_name(f".{path.name}.cache").unlink(missing_ok=True)
     print(f"{args.runs} ledgers, {with_errors} with errors, {mismatches} mismatches -> {out}")
     sys.exit(1 if mismatches else 0)
 

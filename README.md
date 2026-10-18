@@ -13,7 +13,7 @@ These are the Python counterparts of native plugins in [rustledger](https://gith
 plugin "beancount_options.check_option_expiry"
 ```
 
-Add the `check_option_assignment` line once that plugin ships. rustledger's CI runs both implementations on the same ledgers and requires identical results.
+Add the `check_option_assignment` line once that plugin ships. rustledger's CI runs both implementations on the same ledgers and requires identical results, apart from the gaps noted below.
 
 ## Install
 
@@ -96,9 +96,11 @@ uv run pytest
 `scripts/differential.py` generates random ledgers and checks that `bean-check` and `rledger check` report the same errors, line for line:
 
 ```sh
-uv run --with beancount --with-editable . python scripts/differential.py --rledger /path/to/rledger --runs 300 --out /tmp/diff
+uv run --with 'beancount>=3,<4' --with-editable . python scripts/differential.py --rledger /path/to/rledger --runs 300 --out /tmp/diff
 # --includes splits trades across an included file, with same-day trades in both
 ```
+
+`--includes` reports mismatches against rledger until its native plugin orders same-day entries the way beancount does (by line number, whatever the file); that change is proposed on rustledger#2661.
 
 Status: `check_option_expiry` is available; `check_option_assignment` is next. Design: [rustledger#2555](https://github.com/rustledger/rustledger/issues/2555).
 

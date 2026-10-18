@@ -17,7 +17,6 @@ import datetime
 import pathlib
 import random
 import re
-import shutil
 import subprocess
 import sys
 
@@ -35,7 +34,10 @@ SYMBOLS = [
     "AAPL261016P0023000",  # 7 strike digits: not an option
 ]
 START = datetime.date(2026, 9, 1)
-ERROR_LINE = re.compile(r"(?P<name>[^\s:]+\.beancount):(?P<line>\d+):(?:\d+:)?\s*(?P<msg>.*)")
+# `<file>:<line>: message` (bean-check) or `<file>:<line>:<col>: error[...]:
+# message` (rledger). Only errors located in the generated file are compared;
+# the exit status covers the rest.
+ERROR_LINE = re.compile(r"(?P<name>[^\s:\[]+\.beancount):(?P<line>\d+):(?:\d+:)?\s+(?P<msg>.*)")
 
 
 def ledger(rng):
@@ -73,7 +75,7 @@ def errors(text, name):
     for raw in text.splitlines():
         m = ERROR_LINE.search(raw)
         if m and pathlib.Path(m["name"]).name == name:
-            msg = m["msg"].removeprefix("error[PLUGIN]:").strip()
+            msg = re.sub(r"^error\[[A-Z0-9_]+\]:", "", m["msg"]).strip()
             out.append(f"{m['line']}: {msg}")
     return out
 
@@ -91,17 +93,17 @@ def main():
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
     out = pathlib.Path(args.out)
-    shutil.rmtree(out, ignore_errors=True)
-    out.mkdir(parents=True)
-    bean_check = shutil.which("bean-check")
-    if bean_check is None:
-        sys.exit("bean-check not found; run under `uv run --with beancount`")
+    out.mkdir(parents=True, exist_ok=True)
+    if any(out.iterdir()):
+        sys.exit(f"{out} is not empty; give a new or empty directory")
+    # This interpreter's beancount, which has this package installed.
+    bean_check = [sys.executable, "-m", "beancount.scripts.check"]
     mismatches = with_errors = 0
     for i in range(args.runs):
         seed = args.seed + i
         path = out / f"case{seed}.beancount"
         path.write_text(ledger(random.Random(seed)))
-        py_ok, py_text = run([bean_check, str(path)])
+        py_ok, py_text = run([*bean_check, str(path)])
         rs_ok, rs_text = run([args.rledger, "check", str(path)])
         py, rs = errors(py_text, path.name), errors(rs_text, path.name)
         with_errors += bool(py)

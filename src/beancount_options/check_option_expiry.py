@@ -17,8 +17,9 @@ The plugin only reports: entries are returned unchanged, so a ledger stays
 complete without it.
 
 Python counterpart of rustledger's native ``check_option_expiry``; messages
-and locations match it exactly without a config. The native plugin does
-not read ``as_of`` yet.
+and locations match it exactly without a config, except that two same-day
+trades in different included files can be ordered differently. The native
+plugin does not read ``as_of`` yet.
 """
 
 import ast
@@ -44,8 +45,11 @@ class OptionExpiryError(_ErrorFields):
     need not parse it: a dict with ``symbol``, ``account``, ``expiry`` (a
     date) and ``net`` (a Decimal), or None for a configuration error. It is
     an attribute, not a fourth field, so code that unpacks
-    ``source, message, entry`` keeps working. ``_replace`` drops it.
+    ``source, message, entry`` keeps working. ``_replace`` and ``_make``
+    give a copy whose ``details`` is None.
     """
+
+    details = None
 
     def __new__(cls, source, message, entry, details=None):
         self = super().__new__(cls, source, message, entry)

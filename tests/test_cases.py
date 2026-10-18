@@ -16,7 +16,10 @@ from beancount_options import check_option_expiry as plugin_module
 
 CASES = pathlib.Path(__file__).parent / "cases"
 CONFIG_CASES = json.loads((CASES / "expiry_config.json").read_text(encoding="utf-8"))["cases"]
-LEDGERS = sorted((CASES / "expiry").glob("*.beancount"))
+# expiry-python-only/ holds cases rledger's native plugin cannot run yet.
+LEDGERS = sorted((CASES / "expiry").glob("*.beancount")) + sorted(
+    (CASES / "expiry-python-only").glob("*.beancount")
+)
 
 
 def _id(case):
@@ -30,22 +33,21 @@ def test_config_case(case):
     assert (as_of, problem) == (expected, case["problem"])
 
 
-def _loadable_by_beancount(config):
-    # A ledger string decodes backslash escapes and ends at a double quote.
-    return "\\" not in config and '"' not in config and "\n" not in config
+def _ledger_string(text):
+    """``text`` as a ledger string literal, which decodes these two escapes."""
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-@pytest.mark.parametrize(
-    "case",
-    [c for c in CONFIG_CASES if c["problem"] and _loadable_by_beancount(c["config"])],
-    ids=_id,
-)
+@pytest.mark.parametrize("case", CONFIG_CASES, ids=_id)
 def test_config_case_through_bean_check(case):
-    text = f'plugin "beancount_options.check_option_expiry" "{case["config"]}"\n'
+    text = f'plugin "beancount_options.check_option_expiry" {_ledger_string(case["config"])}\n'
     _, errs, _ = loader.load_string(text)
-    assert [e.message for e in errs] == [
-        f"Invalid configuration for check_option_expiry plugin: {case['problem']}; skipping."
-    ]
+    if case["problem"] is None:
+        assert errs == []
+    else:
+        assert [e.message for e in errs] == [
+            f"Invalid configuration for check_option_expiry plugin: {case['problem']}; skipping."
+        ]
 
 
 @pytest.mark.parametrize("ledger", LEDGERS, ids=lambda p: p.stem)
@@ -62,3 +64,4 @@ def test_case_files_are_not_empty():
     # Guards against a glob or path change silently running nothing.
     assert len(CONFIG_CASES) >= 40
     assert {p.stem for p in LEDGERS} >= {"clean", "mixed", "as_of"}
+    assert all(p.with_suffix(".expected").exists() for p in LEDGERS)

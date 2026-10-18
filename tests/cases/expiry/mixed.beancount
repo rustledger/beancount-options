@@ -17,6 +17,17 @@ plugin "beancount_options.check_option_expiry"
   Assets:Broker:Options   1 AAPL261016P00230000 @ 1.00 USD
   Assets:Broker:Cash     -1.00 USD
 
+; Legs that cancel within one entry: netted, they leave the -2 alone. Leg
+; by leg, +2 would reach zero and -2 would reopen it here.
+2026-09-15 * "Buy 2 and sell 2 in one entry"
+  Assets:Broker:Options   2 AAPL261016P00230000 @ 1.00 USD
+  Assets:Broker:Options  -2 AAPL261016P00230000 @ 1.00 USD
+
+; Sorted by account, then symbol: root A sorts first though opened last.
+2026-09-20 * "Sell to open"
+  Assets:Broker:Options  -1 A261016C00100000 @ 1.00 USD
+  Assets:Broker:Cash      1.00 USD
+
 ; Sign change: -1 then +3 crosses zero, so the +2 left is reported at the
 ; buy that crossed.
 2026-09-03 * "Sell to open"

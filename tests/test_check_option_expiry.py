@@ -412,6 +412,11 @@ def test_error_details_survive_pickling():
     assert copy.details == err.details
 
 
+def test_replace_gives_none_details():
+    (err,) = errors(leg("2026-09-02", "-1", PUT) + later("2026-11-01"))
+    assert err._replace(message="x").details is None
+
+
 def test_config_error_has_no_details():
     (err,) = _with_config("[]", "")
     assert err.details is None

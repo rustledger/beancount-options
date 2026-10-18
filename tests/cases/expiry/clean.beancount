@@ -17,6 +17,6 @@ plugin "beancount_options.check_option_expiry"
   Assets:Broker:Options   1 SPY261120C00600000 @ 3.00 USD
   Assets:Broker:Cash     -3.00 USD
 
-2026-10-21 * "Legs that cancel within one entry open nothing"
+2026-10-21 * "Legs that cancel within one entry, after expiry, open nothing"
   Assets:Broker:Options   1 MSFT261016C00400000 @ 1.00 USD
   Assets:Broker:Options  -1 MSFT261016C00400000 @ 1.00 USD

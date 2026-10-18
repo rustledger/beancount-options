@@ -51,6 +51,16 @@ plugin "beancount_options.check_option_expiry"
 ledger.beancount:7: AAPL261016P00230000 expired 2026-10-16 but -1 contract(s) remain open in Assets:Broker:Options
 ```
 
+### Configuration
+
+The plugin takes one optional setting, `as_of`, as a Python dict literal:
+
+```beancount
+plugin "beancount_options.check_option_expiry" "{'as_of': '2026-10-16'}"
+```
+
+`as_of` sets "today" instead of the last entry's date, written `YYYY-MM-DD`. Entries dated after it are ignored, so forecast or scheduled transactions neither move "today" forward nor close a position early. A contract that expired before `as_of` is reported even if the ledger has no later entry. A config that is not a dict literal, has any other key, or writes the date another way is reported as an invalid configuration, and the plugin then skips.
+
 `check_option_assignment` is coming in a later release.
 
 ## Development

@@ -92,6 +92,12 @@ uv run pytest
 
 `tests/cases/` holds config strings and ledgers with the exact errors each must give. They are meant to be shared with rustledger's native plugin's tests, so a rule change goes there first.
 
+`scripts/differential.py` generates random ledgers and checks that `bean-check` and `rledger check` report the same errors, line for line:
+
+```sh
+uv run --with beancount --with-editable . python scripts/differential.py --rledger /path/to/rledger --runs 300 --out /tmp/diff
+```
+
 Status: `check_option_expiry` is available; `check_option_assignment` is next. Design: [rustledger#2555](https://github.com/rustledger/rustledger/issues/2555).
 
 ## License

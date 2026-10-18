@@ -17,8 +17,8 @@ The plugin only reports: entries are returned unchanged, so a ledger stays
 complete without it.
 
 Python counterpart of rustledger's native ``check_option_expiry``; messages
-and locations match it exactly. The native plugin does not read ``as_of``
-yet.
+and locations match it exactly without a config. The native plugin does
+not read ``as_of`` yet.
 """
 
 import ast

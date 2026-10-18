@@ -61,6 +61,8 @@ plugin "beancount_options.check_option_expiry" "{'as_of': '2026-10-16'}"
 
 `as_of` sets "today" instead of the last entry's date, written `YYYY-MM-DD`. Entries dated after it are ignored, so forecast or scheduled transactions neither move "today" forward nor close a position early. A contract that expired before `as_of` is reported even if the ledger has no later entry. A config that is not a dict literal, has any other key, or writes the date another way is reported as an invalid configuration, and the plugin then skips.
 
+rledger's native `check_option_expiry` does not read `as_of` yet: it ignores the config and always uses the last entry's date. Until it does, the same ledger can give different results under `rledger check` and `bean-check` when `as_of` is set.
+
 `check_option_assignment` is coming in a later release.
 
 ## Development

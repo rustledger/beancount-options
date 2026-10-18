@@ -394,9 +394,11 @@ def test_repeated_key_takes_its_last_value():
     assert [e.message.split()[0] for e in errs] == [PUT]
 
 
-def test_as_of_before_every_entry_reports_nothing():
-    body = leg("2026-09-02", "-1", PUT) + later("2026-11-01")
-    assert _with_config("{'as_of': '2026-08-01'}", body) == []
+def test_position_opened_after_as_of_is_not_seen():
+    # The put expired before as_of but was opened after it: without the
+    # date filter it would be reported.
+    body = later("2026-09-01") + leg("2026-11-01", "-1", PUT)
+    assert _with_config("{'as_of': '2026-10-20'}", body) == []
 
 
 @pytest.mark.parametrize("text", ["it's", "a\\b", 'say "hi"'])

@@ -1,0 +1,247 @@
+{
+ "about": [
+  "Config strings for check_option_expiry and the result each must give.",
+  "Read by this package's tests; meant to be read by rustledger's native check_option_expiry too.",
+  "config is the string the plugin receives, after the ledger's own string escapes are decoded.",
+  "as_of: the date in effect, or null for the default rule. problem: the text after",
+  "'Invalid configuration for check_option_expiry plugin: ' and before '; skipping.', or null.",
+  "Cases with native_differs give Python's result; a native implementation may differ, for the reason given."
+ ],
+ "cases": [
+  {
+   "config": "{}",
+   "as_of": null,
+   "problem": null
+  },
+  {
+   "config": "",
+   "as_of": null,
+   "problem": null
+  },
+  {
+   "config": " \t\n",
+   "as_of": null,
+   "problem": null
+  },
+  {
+   "config": " {} ",
+   "as_of": null,
+   "problem": null
+  },
+  {
+   "config": "{'as_of': '2026-10-16'}",
+   "as_of": "2026-10-16",
+   "problem": null
+  },
+  {
+   "config": " \t{'as_of': '2026-10-17'}\t",
+   "as_of": "2026-10-17",
+   "problem": null
+  },
+  {
+   "config": "{\"as_of\": \"2026-10-16\"}",
+   "as_of": "2026-10-16",
+   "problem": null
+  },
+  {
+   "config": "{'as_of': 'bad', 'as_of': '2026-10-17'}",
+   "as_of": "2026-10-17",
+   "problem": null
+  },
+  {
+   "config": "{'as_of': '2028-02-29'}",
+   "as_of": "2028-02-29",
+   "problem": null
+  },
+  {
+   "config": "not a literal",
+   "as_of": null,
+   "problem": "expected a dict such as {'as_of': '2026-10-16'}"
+  },
+  {
+   "config": "['as_of']",
+   "as_of": null,
+   "problem": "expected a dict such as {'as_of': '2026-10-16'}"
+  },
+  {
+   "config": "'2026-10-16'",
+   "as_of": null,
+   "problem": "expected a dict such as {'as_of': '2026-10-16'}"
+  },
+  {
+   "config": "\u001c",
+   "as_of": null,
+   "problem": "expected a dict such as {'as_of': '2026-10-16'}"
+  },
+  {
+   "config": "{'asof': '2026-10-16'}",
+   "as_of": null,
+   "problem": "unknown key 'asof'"
+  },
+  {
+   "config": "{'zz': 1, 'aa': 2}",
+   "as_of": null,
+   "problem": "unknown key 'zz'"
+  },
+  {
+   "config": "{'as_of': '2026-10-16', 'zz': 1}",
+   "as_of": null,
+   "problem": "unknown key 'zz'"
+  },
+  {
+   "config": "{'clé': 1}",
+   "as_of": null,
+   "problem": "an unknown key"
+  },
+  {
+   "config": "{'': 1}",
+   "as_of": null,
+   "problem": "an unknown key"
+  },
+  {
+   "config": "{'it\\'s': 1}",
+   "as_of": null,
+   "problem": "an unknown key"
+  },
+  {
+   "config": "{'as_of': '2026-10-16', 1: 2}",
+   "as_of": null,
+   "problem": "keys must be strings"
+  },
+  {
+   "config": "{'zz': 1, 1: 2}",
+   "as_of": null,
+   "problem": "keys must be strings"
+  },
+  {
+   "config": "{1: 'x', True: 'y'}",
+   "as_of": null,
+   "problem": "keys must be strings"
+  },
+  {
+   "config": "{(1,): 2}",
+   "as_of": null,
+   "problem": "keys must be strings"
+  },
+  {
+   "config": "{'as_of': 20261016}",
+   "as_of": null,
+   "problem": "as_of must be a string"
+  },
+  {
+   "config": "{'as_of': None}",
+   "as_of": null,
+   "problem": "as_of must be a string"
+  },
+  {
+   "config": "{'as_of': True}",
+   "as_of": null,
+   "problem": "as_of must be a string"
+  },
+  {
+   "config": "{'as_of': {'b', 'a', 'c'}}",
+   "as_of": null,
+   "problem": "as_of must be a string"
+  },
+  {
+   "config": "{'as_of': '2026-10-16', 'as_of': 1}",
+   "as_of": null,
+   "problem": "as_of must be a string"
+  },
+  {
+   "config": "{'as_of': '20261016'}",
+   "as_of": null,
+   "problem": "as_of must be a date written YYYY-MM-DD, not '20261016'"
+  },
+  {
+   "config": "{'as_of': '2026-02-30'}",
+   "as_of": null,
+   "problem": "as_of must be a date written YYYY-MM-DD, not '2026-02-30'"
+  },
+  {
+   "config": "{'as_of': '2027-02-29'}",
+   "as_of": null,
+   "problem": "as_of must be a date written YYYY-MM-DD, not '2027-02-29'"
+  },
+  {
+   "config": "{'as_of': '0000-01-01'}",
+   "as_of": null,
+   "problem": "as_of must be a date written YYYY-MM-DD, not '0000-01-01'"
+  },
+  {
+   "config": "{'as_of': '2026-10-16 '}",
+   "as_of": null,
+   "problem": "as_of must be a date written YYYY-MM-DD, not '2026-10-16 '"
+  },
+  {
+   "config": "{'as_of': ' '}",
+   "as_of": null,
+   "problem": "as_of must be a date written YYYY-MM-DD, not ' '"
+  },
+  {
+   "config": "{'as_of': ''}",
+   "as_of": null,
+   "problem": "as_of must be a date written YYYY-MM-DD"
+  },
+  {
+   "config": "{'as_of': '２026-10-16'}",
+   "as_of": null,
+   "problem": "as_of must be a date written YYYY-MM-DD"
+  },
+  {
+   "config": "{'as_of': \"it's\"}",
+   "as_of": null,
+   "problem": "as_of must be a date written YYYY-MM-DD"
+  },
+  {
+   "config": "{'as_of': 'a\\\\b'}",
+   "as_of": null,
+   "problem": "as_of must be a date written YYYY-MM-DD"
+  },
+  {
+   "config": "{'as_of': 'say \"hi\"'}",
+   "as_of": null,
+   "problem": "as_of must be a date written YYYY-MM-DD"
+  },
+  {
+   "config": "{'as_of': '9999999999999999999999999999999999999999'}",
+   "as_of": null,
+   "problem": "as_of must be a date written YYYY-MM-DD, not '9999999999999999999999999999999999999999'"
+  },
+  {
+   "config": "{'as_of': '99999999999999999999999999999999999999999'}",
+   "as_of": null,
+   "problem": "as_of must be a date written YYYY-MM-DD"
+  },
+  {
+   "config": "{[1]: 2}",
+   "as_of": null,
+   "problem": "expected a dict such as {'as_of': '2026-10-16'}",
+   "native_differs": "unhashable key: literal_eval raises; py_literal has one Seq kind for list, tuple and set"
+  },
+  {
+   "config": "{'zz': {[]: 1}}",
+   "as_of": null,
+   "problem": "expected a dict such as {'as_of': '2026-10-16'}",
+   "native_differs": "unhashable key nested in a value"
+  },
+  {
+   "config": "{'as_of': {[1]}}",
+   "as_of": null,
+   "problem": "expected a dict such as {'as_of': '2026-10-16'}",
+   "native_differs": "unhashable set element"
+  },
+  {
+   "config": "{'as_of': 1+2j}",
+   "as_of": null,
+   "problem": "as_of must be a string",
+   "native_differs": "py_literal rejects complex numbers"
+  },
+  {
+   "config": "{'as_of': '\\N{DIGIT TWO}026-10-16'}",
+   "as_of": "2026-10-16",
+   "problem": null,
+   "native_differs": "py_literal rejects \\N{} escapes"
+  }
+ ]
+}

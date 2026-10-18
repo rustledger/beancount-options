@@ -1,0 +1,57 @@
+; One ledger, several cases. Errors are reported by account, then symbol,
+; each at the entry that opened the position still open.
+plugin "beancount_options.check_option_expiry"
+
+2026-09-01 open Assets:Broker:Options
+2026-09-01 open Assets:Broker:Cash
+2026-09-01 open Assets:IRA:Options
+2026-09-01 open Assets:IRA:Cash
+2026-09-01 open Income:Options
+
+; Partial close: -3 then +1 leaves -2, reported at the opening sale.
+2026-09-02 * "Sell to open 3"
+  Assets:Broker:Options  -3 AAPL261016P00230000 @ 2.00 USD
+  Assets:Broker:Cash      6.00 USD
+
+2026-09-10 * "Buy to close 1"
+  Assets:Broker:Options   1 AAPL261016P00230000 @ 1.00 USD
+  Assets:Broker:Cash     -1.00 USD
+
+; Sign change: -1 then +3 crosses zero, so the +2 left is reported at the
+; buy that crossed.
+2026-09-03 * "Sell to open"
+  Assets:Broker:Options  -1 TSLA261016C00300000 @ 5.00 USD
+  Assets:Broker:Cash      5.00 USD
+
+2026-09-12 * "Buy 3, ending long 2"
+  Assets:Broker:Options   3 TSLA261016C00300000 @ 5.00 USD
+  Assets:Broker:Cash    -15.00 USD
+
+; Same contract in another account is tracked on its own.
+2026-09-04 * "Long 100 in the IRA"
+  Assets:IRA:Options    100 AAPL261016P00230000 @ 0.50 USD
+  Assets:IRA:Cash       -50.00 USD
+
+; Roll: the closed contract is fine; the new one is still before expiry.
+2026-09-05 * "Sell to open"
+  Assets:Broker:Options  -1 NVDA261016P00150000 @ 4.00 USD
+  Assets:Broker:Cash      4.00 USD
+
+2026-10-15 * "Roll out a month"
+  Assets:Broker:Options   1 NVDA261016P00150000 @ 1.00 USD
+  Assets:Broker:Options  -1 NVDA261120P00150000 @ 3.00 USD
+  Assets:Broker:Cash      2.00 USD
+
+; Closed after expiry: flat at the end, so nothing is reported.
+2026-09-06 * "Sell to open"
+  Assets:Broker:Options  -1 AMD261016P00120000 @ 1.00 USD
+  Assets:Broker:Cash      1.00 USD
+
+2026-10-19 * "Late close"
+  Assets:Broker:Options   1 AMD261016P00120000 @ 0.00 USD
+  Income:Options
+
+; Moves "today" past the October expiries.
+2026-11-01 * "Interest"
+  Assets:Broker:Cash      0.10 USD
+  Income:Options         -0.10 USD

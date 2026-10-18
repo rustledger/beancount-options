@@ -40,7 +40,13 @@ START = datetime.date(2026, 9, 1)
 ERROR_LINE = re.compile(r"(?P<name>[^\s:\[]+\.beancount):(?P<line>\d+):(?:\d+:)?\s+(?P<msg>.*)")
 
 
-def ledger(rng):
+def ledger(rng, include=None):
+    """A random ledger. With ``include`` (a file name), about half the trades
+    go to a second text for that file, on fewer distinct dates so same-day
+    trades land in both files. Returns (main text, included text or None).
+    """
+    days = 12 if include else 120
+    other = []
     lines = [
         'plugin "beancount_options.check_option_expiry"',
         "",
@@ -52,13 +58,16 @@ def ledger(rng):
     ]
     symbols = rng.sample(SYMBOLS, rng.randint(1, 4))
     for _ in range(rng.randint(1, 12)):
-        date = START + datetime.timedelta(days=rng.randint(1, 120))
-        lines.append(f'{date} * "trade"')
+        date = START + datetime.timedelta(days=rng.randint(1, days))
+        target = other if include and rng.random() < 0.5 else lines
+        target.append(f'{date} * "trade"')
         for _ in range(rng.randint(1, 3)):
             units = rng.choice([-3, -2, -1, 1, 2, 3, 100, -100, "0.5", "-1.50"])
-            lines.append(f"  {rng.choice(ACCOUNTS)}  {units} {rng.choice(symbols)} @ 1.00 USD")
-        lines.append("  Assets:Broker:Cash")
-        lines.append("")
+            target.append(f"  {rng.choice(ACCOUNTS)}  {units} {rng.choice(symbols)} @ 1.00 USD")
+        target.append("  Assets:Broker:Cash")
+        target.append("")
+    if include:
+        lines += [f'include "{include}"', ""]
     end = START + datetime.timedelta(days=rng.randint(30, 150))
     kind = rng.choice(["txn", "price", "note", "none"])
     if kind == "txn":
@@ -67,16 +76,18 @@ def ledger(rng):
         lines += [f"{end} price AAPL 230.00 USD", ""]
     elif kind == "note":
         lines += [f'{end} note Assets:Broker:Cash "hello"', ""]
-    return "\n".join(lines)
+    return "\n".join(lines), ("\n".join(other) if include else None)
 
 
-def errors(text, name):
+def errors(text, names):
+    """``file:line: message`` for each error located in one of ``names``."""
     out = []
     for raw in text.splitlines():
         m = ERROR_LINE.search(raw)
-        if m and pathlib.Path(m["name"]).name == name:
+        name = pathlib.Path(m["name"]).name if m else None
+        if name in names:
             msg = re.sub(r"^error\[[A-Z0-9_]+\]:", "", m["msg"]).strip()
-            out.append(f"{m['line']}: {msg}")
+            out.append(f"{name}:{m['line']}: {msg}")
     return out
 
 
@@ -91,6 +102,11 @@ def main():
     ap.add_argument("--runs", type=int, default=200)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", required=True)
+    ap.add_argument(
+        "--includes",
+        action="store_true",
+        help="split trades across an included file, with same-day trades in both",
+    )
     args = ap.parse_args()
     out = pathlib.Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -102,10 +118,15 @@ def main():
     for i in range(args.runs):
         seed = args.seed + i
         path = out / f"case{seed}.beancount"
-        path.write_text(ledger(random.Random(seed)))
+        inc = path.with_name(f"case{seed}-inc.beancount")
+        main_text, inc_text = ledger(random.Random(seed), inc.name if args.includes else None)
+        path.write_text(main_text)
+        if inc_text is not None:
+            inc.write_text(inc_text)
+        names = {path.name, inc.name}
         py_ok, py_text = run([*bean_check, str(path)])
         rs_ok, rs_text = run([args.rledger, "check", str(path)])
-        py, rs = errors(py_text, path.name), errors(rs_text, path.name)
+        py, rs = errors(py_text, names), errors(rs_text, names)
         with_errors += bool(py)
         if py != rs or py_ok != rs_ok:
             mismatches += 1
@@ -118,6 +139,7 @@ def main():
             )
         else:
             path.unlink()
+            inc.unlink(missing_ok=True)
     print(f"{args.runs} ledgers, {with_errors} with errors, {mismatches} mismatches -> {out}")
     sys.exit(1 if mismatches else 0)
 

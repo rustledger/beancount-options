@@ -97,6 +97,7 @@ uv run pytest
 
 ```sh
 uv run --with beancount --with-editable . python scripts/differential.py --rledger /path/to/rledger --runs 300 --out /tmp/diff
+# --includes splits trades across an included file, with same-day trades in both
 ```
 
 Status: `check_option_expiry` is available; `check_option_assignment` is next. Design: [rustledger#2555](https://github.com/rustledger/rustledger/issues/2555).

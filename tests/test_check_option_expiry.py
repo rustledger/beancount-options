@@ -5,6 +5,11 @@ Each test asserts an exact error count and that beancount itself reported
 nothing, so a fixture that doesn't balance can't hide behind the plugin.
 """
 
+import datetime
+import pickle
+from decimal import Decimal
+
+import pytest
 from beancount import loader
 from helpers import HEADER, later, leg, leg_at_cost, load
 
@@ -303,8 +308,115 @@ def test_cost_booked_legs():
     )
 
 
-def test_config_string_is_accepted_and_ignored():
-    text = f'plugin "beancount_options.check_option_expiry" "{{}}"\n\n{HEADER}'
-    text += leg("2026-09-02", "-1", PUT) + later("2026-11-01")
-    entries, errs, _ = loader.load_string(text)
+def _with_config(config, body):
+    """Load ``body`` with ``config`` as the plugin's config string."""
+    text = f'plugin "beancount_options.check_option_expiry" "{config}"\n\n{HEADER}{body}'
+    _, errs, _ = loader.load_string(text)
+    return errs
+
+
+@pytest.mark.parametrize("config", ["{}", "", " \t\n", " {} "])
+def test_empty_config_keeps_the_default(config):
+    errs = _with_config(config, leg("2026-09-02", "-1", PUT) + later("2026-11-01"))
     assert [e.message.split()[0] for e in errs] == [PUT]
+
+
+def test_as_of_ignores_later_entries():
+    # A forecast dated after as_of neither moves "today" nor closes the put.
+    body = leg("2026-09-02", "-1", PUT) + later("2026-12-01")
+    assert _with_config("{'as_of': '2026-10-16'}", body) == []
+    body = leg("2026-09-02", "-1", PUT) + leg("2026-11-01", "1", PUT)
+    errs = _with_config("{'as_of': '2026-10-20'}", body)
+    assert [e.message for e in errs] == [
+        f"{PUT} expired 2026-10-16 but -1 contract(s) remain open in Assets:Broker:Options"
+    ]
+
+
+def test_as_of_reports_without_a_later_entry():
+    # The ledger stops before expiry; as_of says the expiry has passed.
+    errs = _with_config("{'as_of': '2026-10-17'}", leg("2026-09-02", "-1", PUT))
+    assert [e.message.split()[0] for e in errs] == [PUT]
+    assert errs[0].entry.date.isoformat() == "2026-09-02"
+
+
+def test_as_of_on_the_expiry_day_is_fine():
+    assert _with_config("{'as_of': '2026-10-16'}", leg("2026-09-02", "-1", PUT)) == []
+
+
+def test_as_of_counts_entries_dated_on_it():
+    body = leg("2026-09-02", "-1", PUT) + leg("2026-10-20", "1", PUT)
+    assert _with_config("{'as_of': '2026-10-20'}", body) == []
+
+
+@pytest.mark.parametrize(
+    "config, problem",
+    [
+        ("not a literal", "expected a dict such as {'as_of': '2026-10-16'}"),
+        ("{'asof': '2026-10-16'}", "unknown key 'asof'"),
+    ],
+)
+def test_invalid_config_reports_once_and_skips(config, problem):
+    errs = _with_config(config, leg("2026-09-02", "-1", PUT) + later("2026-11-01"))
+    assert [e.message for e in errs] == [
+        f"Invalid configuration for check_option_expiry plugin: {problem}; skipping."
+    ]
+    assert errs[0].entry is None
+    assert (errs[0].source["filename"], errs[0].source["lineno"]) == ("<check_option_expiry>", 0)
+
+
+def test_as_of_after_surrounding_whitespace():
+    # literal_eval strips leading blanks only from Python 3.10 on.
+    errs = _with_config(" \t{'as_of': '2026-10-17'}\t", leg("2026-09-02", "-1", PUT))
+    assert [e.message.split()[0] for e in errs] == [PUT]
+
+
+def test_repeated_key_takes_its_last_value():
+    config = "{'as_of': 'bad', 'as_of': '2026-10-17'}"
+    errs = _with_config(config, leg("2026-09-02", "-1", PUT))
+    assert [e.message.split()[0] for e in errs] == [PUT]
+
+
+def test_position_opened_after_as_of_is_not_seen():
+    # The put expired before as_of but was opened after it: without the
+    # date filter it would be reported.
+    body = later("2026-09-01") + leg("2026-11-01", "-1", PUT)
+    assert _with_config("{'as_of': '2026-10-20'}", body) == []
+
+
+@pytest.mark.parametrize("text", ["it's", "a\\b", 'say "hi"'])
+def test_quotes_and_backslashes_are_never_quoted_back(text):
+    # Called directly: beancount's own string parser would consume these.
+    _, problem = plugin_module._parse_config(repr({"as_of": text}))
+    assert problem == "as_of must be a date written YYYY-MM-DD"
+
+
+def test_error_details_match_the_message():
+    (err,) = errors(
+        leg("2026-09-02", "-3", PUT) + leg("2026-09-10", "1", PUT) + later("2026-11-01")
+    )
+    assert err.details == {
+        "symbol": PUT,
+        "account": "Assets:Broker:Options",
+        "expiry": datetime.date(2026, 10, 16),
+        "net": Decimal(-2),
+    }
+    source, message, entry = err
+    assert message.startswith(PUT)
+
+
+def test_error_details_survive_pickling():
+    # beancount's loader cache pickles errors.
+    (err,) = errors(leg("2026-09-02", "-1", PUT) + later("2026-11-01"))
+    copy = pickle.loads(pickle.dumps(err))
+    assert copy == err
+    assert copy.details == err.details
+
+
+def test_replace_gives_none_details():
+    (err,) = errors(leg("2026-09-02", "-1", PUT) + later("2026-11-01"))
+    assert err._replace(message="x").details is None
+
+
+def test_config_error_has_no_details():
+    (err,) = _with_config("[]", "")
+    assert err.details is None

@@ -34,7 +34,24 @@ from beancount_options._occ import parse_occ
 
 __plugins__ = ("check_option_expiry",)
 
-OptionExpiryError = namedtuple("OptionExpiryError", "source message entry")
+_ErrorFields = namedtuple("OptionExpiryError", "source message entry")
+
+
+class OptionExpiryError(_ErrorFields):
+    """A beancount error: ``source``, ``message`` and ``entry``, as usual.
+
+    ``details`` carries the same facts as the message for programs, so they
+    need not parse it: a dict with ``symbol``, ``account``, ``expiry`` (a
+    date) and ``net`` (a Decimal), or None for a configuration error. It is
+    an attribute, not a fourth field, so code that unpacks
+    ``source, message, entry`` keeps working. ``_replace`` drops it.
+    """
+
+    def __new__(cls, source, message, entry, details=None):
+        self = super().__new__(cls, source, message, entry)
+        self.details = details
+        return self
+
 
 # Exactly YYYY-MM-DD: fromisoformat accepts more forms from Python 3.11 on.
 _ISO_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
@@ -176,5 +193,6 @@ def check_option_expiry(entries, options_map, config=None):
                 f"{symbol} expired {pos.expiry.isoformat()} but {plain(pos.net)} "
                 f"contract(s) remain open in {account}"
             )
-            errors.append(OptionExpiryError(pos.opened_by.meta, message, pos.opened_by))
+            details = {"symbol": symbol, "account": account, "expiry": pos.expiry, "net": pos.net}
+            errors.append(OptionExpiryError(pos.opened_by.meta, message, pos.opened_by, details))
     return entries, errors

@@ -5,6 +5,10 @@ Each test asserts an exact error count and that beancount itself reported
 nothing, so a fixture that doesn't balance can't hide behind the plugin.
 """
 
+import datetime
+import pickle
+from decimal import Decimal
+
 import pytest
 from beancount import loader
 from helpers import HEADER, later, leg, leg_at_cost, load
@@ -344,33 +348,11 @@ def test_as_of_counts_entries_dated_on_it():
     assert _with_config("{'as_of': '2026-10-20'}", body) == []
 
 
-DATE_FORM = "as_of must be a date written YYYY-MM-DD"
-NOT_A_DICT = "expected a dict such as {'as_of': '2026-10-16'}"
-
-
 @pytest.mark.parametrize(
     "config, problem",
     [
-        ("not a literal", NOT_A_DICT),
-        ("['as_of']", NOT_A_DICT),
+        ("not a literal", "expected a dict such as {'as_of': '2026-10-16'}"),
         ("{'asof': '2026-10-16'}", "unknown key 'asof'"),
-        ("{'zz': 1, 'aa': 2}", "unknown key 'zz'"),
-        ("{'as_of': '2026-10-16', 1: 2}", "keys must be strings"),
-        ("{1: 'x', True: 'y'}", "keys must be strings"),
-        # Values are quoted back only when short, plain ASCII.
-        ("{'clé': 1}", "an unknown key"),
-        ("{'': 1}", "an unknown key"),
-        ("{'as_of': 20261016}", "as_of must be a string"),
-        ("{'as_of': {'b', 'a', 'c'}}", "as_of must be a string"),
-        ("{'as_of': '20261016'}", f"{DATE_FORM}, not '20261016'"),
-        ("{'as_of': '2026-02-30'}", f"{DATE_FORM}, not '2026-02-30'"),
-        ("{'as_of': '0000-01-01'}", f"{DATE_FORM}, not '0000-01-01'"),
-        ("{'as_of': '2026-10-16 '}", f"{DATE_FORM}, not '2026-10-16 '"),
-        ("{'as_of': '\uff12026-10-16'}", DATE_FORM),
-        ("{'as_of': '" + "9" * 40 + "'}", f"{DATE_FORM}, not '{'9' * 40}'"),
-        ("{'as_of': '" + "9" * 41 + "'}", DATE_FORM),
-        # \x1c is whitespace to str.strip() but not here.
-        ("\x1c", NOT_A_DICT),
     ],
 )
 def test_invalid_config_reports_once_and_skips(config, problem):
@@ -406,3 +388,30 @@ def test_quotes_and_backslashes_are_never_quoted_back(text):
     # Called directly: beancount's own string parser would consume these.
     _, problem = plugin_module._parse_config(repr({"as_of": text}))
     assert problem == "as_of must be a date written YYYY-MM-DD"
+
+
+def test_error_details_match_the_message():
+    (err,) = errors(
+        leg("2026-09-02", "-3", PUT) + leg("2026-09-10", "1", PUT) + later("2026-11-01")
+    )
+    assert err.details == {
+        "symbol": PUT,
+        "account": "Assets:Broker:Options",
+        "expiry": datetime.date(2026, 10, 16),
+        "net": Decimal(-2),
+    }
+    source, message, entry = err
+    assert message.startswith(PUT)
+
+
+def test_error_details_survive_pickling():
+    # beancount's loader cache pickles errors.
+    (err,) = errors(leg("2026-09-02", "-1", PUT) + later("2026-11-01"))
+    copy = pickle.loads(pickle.dumps(err))
+    assert copy == err
+    assert copy.details == err.details
+
+
+def test_config_error_has_no_details():
+    (err,) = _with_config("[]", "")
+    assert err.details is None

@@ -27,7 +27,7 @@ Requires Python 3.9+ and beancount 3.
 
 A posting is an option when its commodity is an OCC symbol with the spaces removed: a root of 1–6 letters, digits or dots starting with a letter (adjusted roots such as `XYZ1` are checked too), the expiry as `YYMMDD`, `C` or `P`, and the strike × 1000 as 8 digits. `AAPL261016P00230000` is the AAPL 2026-10-16 230 put. Other commodities are ignored.
 
-The plugin tracks each contract's net units per account, netting each transaction's legs first. It reports a contract that still has units open when the ledger has an entry of any kind dated after its expiry, at the transaction that opened the current position (the last one that moved it off zero or across it). "Today" is the ledger's last entry date, not the clock, so every run gives the same answer. A close dated on the expiry day is fine.
+The plugin tracks each contract's net units per account, netting each transaction's legs first. It reports a contract that still has units open when the ledger has an entry of any kind dated after its expiry, at the transaction that opened the current position (the last one that moved it off zero or across it). "Today" is the ledger's last entry date, not the clock, so every run gives the same answer. A close dated on the expiry day is fine. Each error also carries a `details` attribute, a dict with `symbol`, `account`, `expiry` and `net`, for programs that would otherwise parse the message.
 
 ```beancount
 plugin "beancount_options.check_option_expiry"
@@ -51,6 +51,24 @@ plugin "beancount_options.check_option_expiry"
 ledger.beancount:7: AAPL261016P00230000 expired 2026-10-16 but -1 contract(s) remain open in Assets:Broker:Options
 ```
 
+### Fixing the error
+
+The error usually means the ledger never recorded what happened at expiry. Record it on the expiry date, in the account that holds the contract:
+
+- **Expired worthless:** close the position at a price of zero and book the premium. For the short put above, opened at cost:
+
+  ```beancount
+  2026-10-16 * "AAPL 230 put expired worthless"
+    Assets:Broker:Options   1 AAPL261016P00230000 {} @ 0 USD
+    Income:Options       -250.00 USD
+  ```
+
+  `{}` closes the lot the sale opened. The premium you kept, the lot's 250.00 USD, goes to income.
+- **Assigned or exercised:** close the option leg in the same transaction that moves the stock. `check_option_assignment`, coming next, will check that transaction's basis.
+- **Closed or rolled earlier:** if a closing trade is missing, add it on its own date.
+
+A position created through a `pad` entry is not seen: beancount fills pads after plugins run, so only transactions count.
+
 ### Configuration
 
 The plugin takes one optional setting, `as_of`, as a Python dict literal:
@@ -71,6 +89,8 @@ rledger's native `check_option_expiry` does not read `as_of` yet: it ignores the
 uv run ruff check . && uv run ruff format --check .
 uv run pytest
 ```
+
+`tests/cases/` holds config strings and ledgers with the exact errors each must give. They are meant to be shared with rustledger's native plugin's tests, so a rule change goes there first.
 
 Status: `check_option_expiry` is available; `check_option_assignment` is next. Design: [rustledger#2555](https://github.com/rustledger/rustledger/issues/2555).
 

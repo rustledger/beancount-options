@@ -1,5 +1,4 @@
-; as_of hides a forecast close dated after it. rledger's native plugin does
-; not read as_of yet, hence expiry-python-only/.
+; as_of hides a forecast close dated after it.
 plugin "beancount_options.check_option_expiry" "{'as_of': '2026-10-20'}"
 
 2026-09-01 open Assets:Broker:Options

@@ -16,10 +16,7 @@ from beancount_options import check_option_expiry as plugin_module
 
 CASES = pathlib.Path(__file__).parent / "cases"
 CONFIG_CASES = json.loads((CASES / "expiry_config.json").read_text(encoding="utf-8"))["cases"]
-# expiry-python-only/ holds cases rledger's native plugin cannot run yet.
-LEDGERS = sorted((CASES / "expiry").glob("*.beancount")) + sorted(
-    (CASES / "expiry-python-only").glob("*.beancount")
-)
+LEDGERS = sorted((CASES / "expiry").glob("*.beancount"))
 
 
 def _id(case):

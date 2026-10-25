@@ -8,9 +8,12 @@ from beancount import loader
 HEADER = """\
 2026-01-01 open Assets:Broker:Options
 2026-01-01 open Assets:Broker:Cash
+2026-01-01 open Assets:Broker:Stock
 2026-01-01 open Assets:IRA:Options
 2026-01-01 open Expenses:Fees
+2026-01-01 open Expenses:Broker:Commission
 2026-01-01 open Income:Options
+2026-01-01 open Income:Trading:Gains
 """
 
 

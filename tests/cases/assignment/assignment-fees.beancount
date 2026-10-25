@@ -1,0 +1,56 @@
+; The fee window (rustledger#2732): with a commission the entry settles
+; beyond the strike value, and rule 3 then accepts "fee expensed to fee
+; folded" - but only when the entry's cash proves the commission. The
+; expected errors are in assignment-fees.expected.
+plugin "beancount_options.check_option_assignment"
+
+2026-01-01 open Assets:Broker:Options
+2026-01-01 open Assets:Broker:Stock
+2026-01-01 open Assets:Broker:Cash
+2026-01-01 open Expenses:Broker:Commission
+2026-01-01 open Income:Trading:Gains
+
+; Fee expensed: basis at strike - premium, the commission on its own leg,
+; cash short by the fee. Fine.
+2026-09-03 * "Sell to open AAPL 225 put"
+  Assets:Broker:Options  -1 AAPL261016P00225000 {300.00 USD}
+  Assets:Broker:Cash     300.00 USD
+
+2026-10-16 * "AAPL 225 put assigned, commission expensed"
+  Assets:Broker:Options   1 AAPL261016P00225000 {}
+  Assets:Broker:Stock   100 AAPL {222.00 USD}
+  Expenses:Broker:Commission  5.00 USD
+  Assets:Broker:Cash  -22505.00 USD
+
+; Fee folded: basis = strike - premium + fee. Fine.
+2026-09-03 * "Sell to open MSFT 230 put"
+  Assets:Broker:Options  -1 MSFT261016P00230000 {250.00 USD}
+  Assets:Broker:Cash     250.00 USD
+
+2026-10-16 * "MSFT 230 put assigned, commission folded"
+  Assets:Broker:Options   1 MSFT261016P00230000 {}
+  Assets:Broker:Stock   100 MSFT {227.55 USD}
+  Assets:Broker:Cash  -23005.00 USD
+
+; Outside the window: the stock is at the full strike. The error names
+; the window the proven fee allows.
+2026-09-03 * "Sell to open NVDA 150 put"
+  Assets:Broker:Options  -1 NVDA261016P00150000 {400.00 USD}
+  Assets:Broker:Cash     400.00 USD
+
+2026-10-16 * "NVDA 150 put assigned at the strike"
+  Assets:Broker:Options   1 NVDA261016P00150000 {}
+  Assets:Broker:Stock   100 NVDA {150.00 USD}
+  Assets:Broker:Cash  -15005.00 USD
+  Income:Trading:Gains
+
+; Cash left to the booking is not an independent witness, so the exact
+; rule is required and the error names no window.
+2026-09-03 * "Sell to open AMD 100 put"
+  Assets:Broker:Options  -1 AMD261016P00100000 {150.00 USD}
+  Assets:Broker:Cash     150.00 USD
+
+2026-10-16 * "AMD 100 put assigned, cash left to the booking"
+  Assets:Broker:Options   1 AMD261016P00100000 {}
+  Assets:Broker:Stock   100 AMD {100.00 USD}
+  Assets:Broker:Cash

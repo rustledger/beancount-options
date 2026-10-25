@@ -3,7 +3,7 @@
 Beancount plugins that check option contracts written in a Beancount ledger:
 
 - `check_option_expiry`: reports a contract that still has open units after it expires.
-- `check_option_assignment` (planned, not yet in the package): checks an assigned short option (shares per contract, no gain on the option leg, and the stock's basis or proceeds of strike ∓ premium).
+- `check_option_assignment`: checks an assigned short option (shares per contract, no gain on the option leg, and the stock's basis or proceeds of strike ∓ premium).
 
 The plugins only check and report. They never generate entries.
 
@@ -11,9 +11,10 @@ These are the Python counterparts of native plugins in [rustledger](https://gith
 
 ```beancount
 plugin "beancount_options.check_option_expiry"
+plugin "beancount_options.check_option_assignment"
 ```
 
-Add the `check_option_assignment` line once that plugin ships. rustledger's CI runs both implementations on the same ledgers and requires identical results, apart from the gaps noted below.
+rustledger's CI runs both implementations on the same ledgers and requires identical results, apart from the gaps noted below.
 
 ## Install
 
@@ -65,7 +66,7 @@ The error usually means the ledger never recorded what happened to the contract.
   ```
 
   `{}` closes the lot the sale opened. The premium you kept, the lot's 250.00 USD, goes to income. For a long option the signs flip: `-1 … {} @ 0 USD`, and the premium you paid is a loss, booked to an expense or a negative income posting.
-- **Assigned or exercised:** on the assignment date, close the option leg in the same transaction that moves the stock. `check_option_assignment`, coming next, will check that transaction's basis.
+- **Assigned or exercised:** on the assignment date, close the option leg in the same transaction that moves the stock. `check_option_assignment` checks that transaction's basis.
 - **Closed or rolled earlier:** add the missing closing trade on the date it happened.
 
 A position created through a `pad` entry is not seen: beancount fills pads after plugins run, so only transactions count.
@@ -82,7 +83,63 @@ plugin "beancount_options.check_option_expiry" "{'as_of': '2026-10-16'}"
 
 rledger's native `check_option_expiry` does not read `as_of` yet: it ignores the config and always uses the last entry's date. Until it does, the same ledger can give different results under `rledger check` and `bean-check` when `as_of` is set.
 
-`check_option_assignment` is coming in a later release.
+## check_option_assignment
+
+When a short option is assigned the premium is not a separate gain: for a short put the stock's basis is strike × shares − premium, for a short call the sale proceeds are strike × shares + premium. The plugin checks that the stock leg of an assignment says so.
+
+An **assignment** is a transaction that reduces a short position in an OCC option and also moves its root commodity: stock units rise for a put, fall for a call. Ordinary closes, long options, cash-settled index options, and assignments split across two transactions are not checked. Puts and calls on one root are separate assignments, so a put assigned beside a call bought back in the same entry is still checked.
+
+The plugin runs after booking, so a closing `{}` leg carries the cost of the lot it closed: the premium. Each assignment gets at most one error, from the first rule that fails:
+
+1. Stock units = 100 × contracts.
+2. The option leg realizes no gain (no price, or a price equal to cost).
+3. The stock basis (put) or proceeds (call) match within half a cent per share, compared as totals across every booked lot. A put's stock leg needs a cost, and a call's a price; a call that opens a short stock position may give its proceeds as the short lot's cost instead.
+
+A commission settles the entry beyond the strike value, and rule 3 then accepts the range "fee expensed to fee folded", but only when the entry is plainly one assignment and its cash is an independent witness (rustledger#2732): exactly one closing group, every cash posting written rather than booking-interpolated, and no posting carrying a cost or price outside the group's option and stock legs. The fee the window allows is the one the entry's cash proves it moved. When a guard fails, the exact figure is required: at worst a fee-folded ledger gets flagged.
+
+Each error also carries a `details` attribute, a dict with the contracts, the root and right, and the numbers the message compares, for programs that would otherwise parse the message.
+
+```beancount
+plugin "beancount_options.check_option_assignment"
+
+2026-01-01 open Assets:Broker:Options
+2026-01-01 open Assets:Broker:Stock
+2026-01-01 open Assets:Broker:Cash
+2026-01-01 open Income:Trading:Gains
+
+2026-09-03 * "Sell to open AAPL 225 put"
+  Assets:Broker:Options  -1 AAPL261016P00225000 {300.00 USD}
+  Assets:Broker:Cash     300.00 USD
+
+2026-10-16 * "AAPL 225 put assigned"
+  Assets:Broker:Options   1 AAPL261016P00225000 {}
+  Assets:Broker:Stock   100 AAPL {225.00 USD}
+  Assets:Broker:Cash  -22500.00 USD
+  Income:Trading:Gains  -300.00 USD
+```
+
+`bean-check` reports, at the assignment line:
+
+```
+ledger.beancount:12: AAPL261016P00225000 assignment: AAPL basis 22500.00 USD, expected 22200.00 USD (strike 225 × 100 − premium 300.00)
+```
+
+### Fixing the error
+
+Book the premium as part of the stock leg, not as income. For the put above, the stock's cost is (225 × 100 − 300) / 100 = 222.00 USD a share:
+
+```beancount
+2026-10-16 * "AAPL 225 put assigned"
+  Assets:Broker:Options   1 AAPL261016P00225000 {}
+  Assets:Broker:Stock   100 AAPL {222.00 USD}
+  Assets:Broker:Cash  -22500.00 USD
+```
+
+The other errors say what to do where they differ: give the stock leg a cost (a put) or a price (a call), close the option leg at cost with `{}` and no `@`, and move 100 shares per contract. With a commission, either expense it on its own leg or fold it into the stock's cost or price: both are inside the window rule 3 accepts.
+
+### Configuration
+
+The plugin has no options. A config string that is not blank is reported once as a notice; beancount has no warning severity, so it is listed among `bean-check`'s errors. That, and amounts whose arithmetic leaves `rust_decimal`'s range (where the native plugin reports `… assignment not checked: amounts exceed the supported decimal range`, and this package computes and checks them normally), are the two results that differ from the native plugin.
 
 ## Development
 
@@ -102,7 +159,7 @@ uv run --with 'beancount>=3,<4' --with-editable . python scripts/differential.py
 
 `--includes` reports mismatches against rledger until its native plugin orders same-day entries the way beancount does (by line number, whatever the file); that change is proposed on rustledger#2661.
 
-Status: `check_option_expiry` is available; `check_option_assignment` is next. Design: [rustledger#2555](https://github.com/rustledger/rustledger/issues/2555).
+Status: `check_option_expiry` and `check_option_assignment` are available. Design: [rustledger#2555](https://github.com/rustledger/rustledger/issues/2555).
 
 ## License
 

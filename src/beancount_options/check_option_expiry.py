@@ -17,9 +17,8 @@ The plugin only reports: entries are returned unchanged, so a ledger stays
 complete without it.
 
 Python counterpart of rustledger's native ``check_option_expiry``; messages
-and locations match it exactly without a config, except that two same-day
-trades in different files can be ordered differently (rustledger#2661). The native
-plugin does not read ``as_of`` yet.
+and locations match it exactly, ``as_of`` included. The configs that read
+differently are marked ``native_differs`` in ``tests/cases/expiry_config.json``.
 """
 
 import ast

@@ -451,6 +451,41 @@ def test_an_interpolated_cash_posting_falls_back_to_the_exact_rule():
     )
 
 
+def test_a_cost_outside_the_group_falls_back_to_the_exact_rule():
+    open_ = sto("2026-09-03", PUT, "300.00")
+    stock = "Assets:Broker:Stock   100 AAPL {222.05 USD}"
+    # The folded fee is inside the window while the entry is one assignment
+    # and its cash is an independent witness.
+    assert errors(open_ + put_assignment(stock, cash="-22505.00")) == []
+    # A sweep purchase moves the cash too: its cost is outside the group's
+    # option and stock legs, so the window is off and the exact rule applies.
+    (err,) = errors(
+        open_ + put_assignment(stock, "Assets:Broker:Stock   10 QQQ {5.00 USD}", cash="-22555.00")
+    )
+    assert err.message == (
+        "AAPL261016P00225000 assignment: AAPL basis 22205.00 USD, expected 22200.00 USD "
+        "(strike 225 × 100 − premium 300.00)"
+    )
+
+
+def test_two_closing_groups_fall_back_to_the_exact_rule():
+    other = "MSFT261016C00500000"
+    open_ = sto("2026-09-03", PUT, "300.00") + sto("2026-09-04", other, "220.00")
+    stock = "Assets:Broker:Stock   100 AAPL {222.05 USD}"
+    call_close = f"Assets:Broker:Options   1 {other} {{220.00 USD}}"
+    # One closing group: the folded fee is accepted.
+    assert errors(sto("2026-09-03", PUT, "300.00") + put_assignment(stock, cash="-22505.00")) == []
+    # Two closing groups (a call bought back beside the put assigned) are not
+    # one assignment, so the window is off and the exact rule applies.
+    (err,) = errors(
+        open_ + put_assignment(stock, call_close, cash="-22725.00"),
+    )
+    assert err.message == (
+        "AAPL261016P00225000 assignment: AAPL basis 22205.00 USD, expected 22200.00 USD "
+        "(strike 225 × 100 − premium 300.00)"
+    )
+
+
 def test_the_config_is_ignored_with_a_notice():
     def with_config(config, body):
         text = f'plugin "beancount_options.check_option_assignment" "{config}"\n\n{HEADER}{body}'

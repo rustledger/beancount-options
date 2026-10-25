@@ -157,7 +157,7 @@ uv run --with 'beancount>=3,<4' --with-editable . python scripts/differential.py
 # --includes splits trades across an included file, with same-day trades in both
 ```
 
-`--includes` needs an rledger that orders same-day entries the way beancount does (by line number, whatever the file), which rustledger#2661 does.
+`--includes` needs an rledger that orders same-day entries the way beancount does (by line number, whatever the file), which rustledger#2661 does; earlier builds report mismatches against it.
 
 Status: `check_option_expiry` and `check_option_assignment` are available. Design: [rustledger#2555](https://github.com/rustledger/rustledger/issues/2555).
 

@@ -7,7 +7,8 @@ other commodity is ignored.
 "Today" is the date of the last entry of any kind in the ledger, not the system clock,
 so the result is the same on every run. A contract is reported when its net
 units in an account are non-zero and the ledger contains an entry dated
-after its expiry. A close dated on the expiry day itself is fine.
+after its expiry. A close dated on the expiry day itself is fine. With
+``as_of``, one that expired before it is reported even with no later entry.
 
 The optional config ``"{'as_of': 'YYYY-MM-DD'}"`` sets "today" instead.
 Entries dated after it are ignored, so forecast or scheduled transactions
@@ -17,8 +18,10 @@ The plugin only reports: entries are returned unchanged, so a ledger stays
 complete without it.
 
 Python counterpart of rustledger's native ``check_option_expiry``; messages
-and locations match it exactly, ``as_of`` included. The configs that read
-differently are marked ``native_differs`` in ``tests/cases/expiry_config.json``.
+and locations match it exactly on an rledger with rustledger/rustledger#2711
+(``as_of``) and rustledger#2661 (same-day trades across files). The configs
+that read differently are marked ``native_differs`` in
+``tests/cases/expiry_config.json``.
 """
 
 import ast
